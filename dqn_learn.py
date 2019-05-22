@@ -233,6 +233,8 @@ def dqn_learing(
             # evaluating the current and next Q-values and constructing the corresponding error.
             # Note: don't forget to clip the error between [-1,1], multiply is by -1 (since pytorch minimizes) and
             #       maskout post terminal status Q-values (see ReplayBuffer code).
+
+            Q_value_stage = (Q(obs_batch).gather(1, act_batch.unsqueeze(1))).squeeze()
             # 3.c: train the model. To do this, use the bellman error you calculated perviously.
             # Pytorch will differentiate this error for you, to backward the error use the following API:
             #       current.backward(d_error.data.unsqueeze(1))
@@ -240,13 +242,29 @@ def dqn_learing(
             # Your code should produce one scalar-valued tensor.
             # Note: don't forget to call optimizer.zero_grad() before the backward call and
             #       optimizer.step() after the backward call.
+            next_stage_target, _ = target_Q(next_obs_batch).max(1)
+            # ###Mask out post terminal status Q-values (see ReplayBuffer code).
+            next_stage_target = done_mask * next_stage_target.type(dtype)
+            target_q_vals = rew_batch + (next_stage_target  *  gamma )
+            # ##Compute the Bellman error.
+            d_error = target_q_vals - Q_value_stage
+            # ###Don't forget to clip the error between [-1,1]
+            #### Multiply it by -1 (since pytorch minimizes).
+            d_error = (-1) * d_error.clamp(-1, 1)
+
+            ##real 3c:
+            optimizer.zero_grad()
+            Q_value_stage.backward(d_error)
+            optimizer.step()
+            num_param_updates += 1
+
             # 3.d: periodically update the target network by loading the current Q network weights into the
             #      target_Q network. see state_dict() and load_state_dict() methods.
             #      you should update every target_update_freq steps, and you may find the
             #      variable num_param_updates useful for this (it was initialized to 0)
             #####
-                ###########WRITE CODE WRITE CODE
-                a=1
+            if num_param_updates % target_update_freq == 0:
+                target_Q.load_state_dict(Q.state_dict())
             #####
 
         ### 4. Log progress and keep track of statistics
